@@ -30,7 +30,7 @@ class QueryGeneralizer:
                 path_pattern.node_pattern_list[0].symbolic_name,
                 path_pattern.node_pattern_list[0].label,
             )
-            where_clause: WhereClause = WhereClause(compare_expression=compare_expression)
+            where_clause: WhereClause = WhereClause(compare_expression_list=compare_expression)
 
             # add return clause
             return_body: ReturnBody = self.schema_graph.match_return_body(

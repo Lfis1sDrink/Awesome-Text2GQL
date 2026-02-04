@@ -12,6 +12,7 @@ from app.impl.tugraph_cypher.grammar.LcypherLexer import LcypherLexer
 from app.impl.tugraph_cypher.grammar.LcypherParser import LcypherParser
 from app.impl.tugraph_cypher.grammar.LcypherVisitor import LcypherVisitor
 
+import traceback
 
 class TugraphCypherAstVisitor(LcypherVisitor, AstVisitor):
     def get_query_pattern(self, query: str) -> Tuple[bool, List[Clause]]:
@@ -23,7 +24,9 @@ class TugraphCypherAstVisitor(LcypherVisitor, AstVisitor):
         try:
             querry_pattern = self.visit(tree)
             return True, querry_pattern
-        except Exception:
+        except Exception as e:
+            print("发生未知错误:", e)
+            traceback.print_exc()
             return False, []
 
     def visitOC_SinglePartQuery(self, ctx: LcypherParser.OC_SinglePartQueryContext):
@@ -38,14 +41,16 @@ class TugraphCypherAstVisitor(LcypherVisitor, AstVisitor):
 
     def visitOC_MultiPartQuery(self, ctx: LcypherParser.OC_MultiPartQueryContext):
         clause_list = []
-        # add clause list from reading clause
-        for context in ctx.oC_ReadingClause():
-            clause_list += self.visitOC_ReadingClause(context)
-        # add with clause
-        if ctx.oC_With() is not None:
-            clause_list.append(self.visitOC_With(ctx.oC_With(0)))
-        # add clause list from single part query
-        clause_list += self.visitOC_SinglePartQuery(ctx.oC_SinglePartQuery())
+        for ctx in ctx.getChildren():
+            # add clause list from reading clause
+            if isinstance(ctx, LcypherParser.OC_ReadingClauseContext):
+                clause_list.append(self.visitOC_ReadingClause(ctx))
+            # add with clause
+            if isinstance(ctx, LcypherParser.OC_WithContext):
+                clause_list.append(self.visitOC_With(ctx))
+            # add clause list from single part query
+            if isinstance(ctx, LcypherParser.OC_SinglePartQueryContext):
+                clause_list += self.visitOC_SinglePartQuery(ctx)
         # return clause list
         return clause_list
 
@@ -57,7 +62,7 @@ class TugraphCypherAstVisitor(LcypherVisitor, AstVisitor):
         # add match clause
         path_pattern_list = self.visitOC_Pattern(ctx.oC_Pattern())
         # only use the first path pattern
-        match_clause = MatchClause(path_pattern_list[0])
+        match_clause = MatchClause(path_pattern_list)
         # add match clause to clause list
         clause_list.append(match_clause)
         # add where clause to clause list
@@ -179,7 +184,7 @@ class TugraphCypherAstVisitor(LcypherVisitor, AstVisitor):
     def visitOC_PartialComparisonExpression(
         self, ctx: LcypherParser.OC_PartialComparisonExpressionContext
     ):
-        [compare_value] = self.visitOC_AddOrSubtractExpression(ctx.oC_AddOrSubtractExpression())
+        [compare_value, *_] = self.visitOC_AddOrSubtractExpression(ctx.oC_AddOrSubtractExpression())
         compare_type = ""
         compare_symbol = ctx.getChild(0).getText()
         if compare_symbol == "=":
@@ -263,6 +268,9 @@ class TugraphCypherAstVisitor(LcypherVisitor, AstVisitor):
             [symbolic_name, property, _] = self.visitOC_Expression(
                 ctx.oC_Atom().oC_FunctionInvocation().oC_Expression(0)
             )
+            # TODO: move this part into translation
+            if ctx.oC_Atom().oC_FunctionInvocation().DISTINCT():
+                symbolic_name = f"DISTINCT {symbolic_name}"
             return [symbolic_name, property, function_name]
         if ctx.oC_Atom().oC_Literal():
             # return comparison value
