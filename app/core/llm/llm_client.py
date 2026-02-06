@@ -1,17 +1,29 @@
+import os
 from http import HTTPStatus
 import random
+import time
 
+import openai
 from dashscope import Generation
+from openai import OpenAI, OpenAIError
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 class LlmClient:
-    def __init__(self, model="", model_path=""):
+    def __init__(self, model="", model_path="", platform=""):
         self.model = model
         self.model_path = model_path
         self.current_device = None
         self.tokenizer = None
+
+        platform_form_env = os.getenv("LLM_PLATFORM")
+        if platform != "":
+            self.platform = platform
+        elif platform_form_env is not None:
+            self.platform = platform_form_env
+        else:
+            self.platform = "dashscope"
         if model_path != "":
             # check current device
             self.current_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -30,28 +42,13 @@ class LlmClient:
         return output
 
     def call_with_messages_online(self, messages):
-        response = Generation.call(
-            model=self.model,
-            messages=messages,
-            seed=random.randint(1, 10000),
-            temperature=0.8,
-            top_p=0.8,
-            top_k=50,
-            result_format="message",
-        )
-        if response.status_code == HTTPStatus.OK:
-            content = response.output.choices[0].message.content
-            return content
+        if self.platform == "openai":
+            return self.call_with_messages_online_for_openai(messages)
+        elif self.platform == "dashscope":
+            return self.call_with_messages_online_for_dashscope(messages)
         else:
-            if response.code == 429:  # Requests rate limit exceeded
-                self.call_with_messages_online(messages)
-            else:
-                print(
-                    f"Request id: {response.request_id}, Status code: {response.status_code}"
-                    + f", error code: {response.code}, error message: {response.message}"
-                )
-                print("Failed!", messages[1]["content"])
-                return ""
+            print(f"Unsupposed platform:{self.platform}")
+            return ""
 
     def call_with_messages_local(self, messages):
         # generate content
@@ -77,6 +74,55 @@ class LlmClient:
         )
 
         return output
+
+    def call_with_messages_online_for_openai(self, messages):
+        try:
+            openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("OPENAI_BASE_URL"))
+            response = openai_client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=0
+            )
+            return response.choices[0].message.content
+        except openai.RateLimitError as e:
+            print("there are too many request,ready to retry in 1 second")
+            time.sleep(1)
+            print("begin to retry")
+            return self.call_with_messages_online_for_openai(messages)
+        except OpenAIError as e:
+            print("Failed!", messages[1]["content"])
+
+    def call_with_messages_online_for_dashscope(self, messages):
+        response = Generation.call(
+            model=self.model,
+            messages=messages,
+            seed=random.randint(1, 10000),
+            temperature=0.8,
+            top_p=0.8,
+            top_k=50,
+            result_format="message",
+        )
+        if response.status_code == HTTPStatus.OK:
+            content = response.output.choices[0].message.content
+            return content
+        else:
+            if response.code == 429:  # Requests rate limit exceeded
+                print(
+                    f"Request id: {response.request_id}, Status code: {response.status_code}"
+                    + f", error code: {response.code}, error message: too many request,ready to retry in 1 second "
+                )
+                time.sleep(1)
+                print(
+                    f"Request id: {response.request_id}, begin to retry"
+                )
+                return self.call_with_messages_online_for_dashscope(messages)
+            else:
+                print(
+                    f"Request id: {response.request_id}, Status code: {response.status_code}"
+                    + f", error code: {response.code}, error message: {response.message}"
+                )
+                print("Failed!", messages[1]["content"])
+                return ""
 
 
 if __name__ == "__main__":
