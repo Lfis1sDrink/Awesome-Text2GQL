@@ -1,10 +1,10 @@
-import os
 from http import HTTPStatus
+import os
 import random
 import time
 
-import openai
 from dashscope import Generation
+import openai
 from openai import OpenAI, OpenAIError
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -77,19 +77,19 @@ class LlmClient:
 
     def call_with_messages_online_for_openai(self, messages):
         try:
-            openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("OPENAI_BASE_URL"))
+            openai_client = OpenAI(
+                api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("OPENAI_BASE_URL")
+            )
             response = openai_client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=0
+                model=self.model, messages=messages, temperature=0
             )
             return response.choices[0].message.content
-        except openai.RateLimitError as e:
+        except openai.RateLimitError:
             print("there are too many request,ready to retry in 1 second")
             time.sleep(1)
             print("begin to retry")
             return self.call_with_messages_online_for_openai(messages)
-        except OpenAIError as e:
+        except OpenAIError:
             print("Failed!", messages[1]["content"])
 
     def call_with_messages_online_for_dashscope(self, messages):
@@ -109,12 +109,11 @@ class LlmClient:
             if response.code == 429:  # Requests rate limit exceeded
                 print(
                     f"Request id: {response.request_id}, Status code: {response.status_code}"
-                    + f", error code: {response.code}, error message: too many request,ready to retry in 1 second "
+                    + f", error code: {response.code}, error message: {response.message}"
+                    + "too many request,ready to retry in 1 second "
                 )
                 time.sleep(1)
-                print(
-                    f"Request id: {response.request_id}, begin to retry"
-                )
+                print(f"Request id: {response.request_id}, begin to retry")
                 return self.call_with_messages_online_for_dashscope(messages)
             else:
                 print(

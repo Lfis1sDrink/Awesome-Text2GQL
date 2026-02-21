@@ -238,3 +238,82 @@ class CorpusGenerator:
 
         # Final corpus save
         return complexity_corpus
+
+    def generate_template_based_corpus(
+        self, exploration_results: List[Any], target_size: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Directly pass the raw results of exploration queries to the LLM, 
+        and let the LLM generate corpus based on the templates.
+        """
+        print(f"Start generating {target_size} template-based queries via LLM extraction...")
+
+        # 1. Prepare data context
+        # To prevent the prompt from being too long, we convert the raw data to a string 
+        # and truncate it to the first N characters (e.g., 15,000 characters).
+        # Typically, the result of LIMIT 20 won't be too large, but just in case.
+        raw_data_str = str(exploration_results)
+        if len(raw_data_str) > 20000:
+            raw_data_str = raw_data_str[:20000] + "...(truncated)"
+
+        generated_corpus = []
+        batch_size = 5  # 每次让 LLM 生成 5 个
+
+        while len(generated_corpus) < target_size:
+            remaining = target_size - len(generated_corpus)
+            current_batch_size = min(batch_size, remaining)
+
+            # 2. Randomly select a few templates to avoid overly long prompts 
+            # or the LLM focusing only on the first few templates.
+            # Randomly sample from corpus.QUERY_TEMPLATE, allowing duplicates 
+            # if there are too few templates.
+            selected_templates = json.dumps(
+                random.choices(corpus.QUERY_TEMPLATE, k=current_batch_size), ensure_ascii=False
+            )
+
+            # 3. Construct the Prompt
+            # We directly provide the "raw" data and ask the LLM to do three things: 
+            # extract information, fill the template, and generate questions.
+            instraction = corpus.QUERY_TEMPLATE_INSTRUCTION.format(
+                raw_data_str=raw_data_str,
+                current_batch_size=current_batch_size,
+                selected_templates=selected_templates,
+            )
+
+            message = [
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant that generates Cypher datasets.",
+                },
+                {"role": "user", "content": instraction},
+            ]
+
+            # 4. Call LLM
+            try:
+                response = self.llm_client.call_with_messages(message)
+                new_pairs = self._extract_json_from_response(response, expect_list=True)
+
+                if new_pairs and isinstance(new_pairs, list):
+                    # Simple validation: filter out any pairs 
+                    # where the query still contains placeholders like 'label_1' or 'prop_1'
+                    valid_batch = []
+                    for item in new_pairs:
+                        if "query" in item and "question" in item:
+                            if "label_" not in item["query"] and "prop_" not in item["query"]:
+                                valid_batch.append(item)
+
+                    generated_corpus.extend(valid_batch)
+                    print(
+                        f" -> LLM generated {len(valid_batch)} valid pairs. "
+                        f"Total: {len(generated_corpus)}/{target_size}"
+                    )
+                else:
+                    print(" -> LLM returned empty or invalid JSON. Retrying...")
+
+            except Exception as e:
+                print(f" -> LLM Call failed: {e}")
+                time.sleep(1)
+
+            time.sleep(0.5)
+
+        return generated_corpus[:target_size]
