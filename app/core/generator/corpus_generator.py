@@ -240,7 +240,7 @@ class CorpusGenerator:
         return complexity_corpus
 
     def generate_template_based_corpus(
-        self, exploration_results: List[Any], target_size: int = 10
+        self, exploration_results: List[Any], query_templates: List[str], target_size: int = 10
     ) -> List[Dict[str, Any]]:
         """
         Directly pass the raw results of exploration queries to the LLM, 
@@ -257,7 +257,7 @@ class CorpusGenerator:
             raw_data_str = raw_data_str[:20000] + "...(truncated)"
 
         generated_corpus = []
-        batch_size = 5  # 每次让 LLM 生成 5 个
+        batch_size = 5  # Number of pairs to generate per LLM call
 
         while len(generated_corpus) < target_size:
             remaining = target_size - len(generated_corpus)
@@ -268,7 +268,7 @@ class CorpusGenerator:
             # Randomly sample from corpus.QUERY_TEMPLATE, allowing duplicates 
             # if there are too few templates.
             selected_templates = json.dumps(
-                random.choices(corpus.QUERY_TEMPLATE, k=current_batch_size), ensure_ascii=False
+                random.choices(query_templates, k=current_batch_size), ensure_ascii=False
             )
 
             # 3. Construct the Prompt

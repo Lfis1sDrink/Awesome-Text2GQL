@@ -44,6 +44,13 @@ def main():
         # Graph database name
         graph = "Manufacturing_Production_Process_aa00"
 
+        # Read templates
+        template_file = Path("examples/corpus_templates/corpus_templates.json")
+        with open(template_file, "r", encoding="utf-8") as f:
+            query_templates = json.load(f)
+        
+        logger.info(f"Loaded {len(query_templates)} templates from {template_file}")
+
         # Output file path
         output_file = Path(f"examples/generated_corpus/{graph}_template_corpus.json")
 
@@ -101,7 +108,9 @@ def main():
 
         # This calls the method we added to CorpusGenerator class
         template_corpus = generator.generate_template_based_corpus(
-            exploration_results=raw_exploration_data, target_size=target_template_corpus_size
+            exploration_results=raw_exploration_data, 
+            query_templates=query_templates, 
+            target_size=target_template_corpus_size
         )
 
         if not template_corpus:
