@@ -42,7 +42,7 @@ def main():
         logger.info("Starting TEMPLATE-BASED corpus generation process...")
 
         # Graph database name
-        graph = "Manufacturing_Production_Process_aa00"
+        graph = "example_graph"
 
         # Read templates
         template_file = Path("examples/corpus_templates/corpus_templates.json")

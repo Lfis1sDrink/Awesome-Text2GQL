@@ -145,6 +145,22 @@ After all, run:
 
 When the script finishes, the generated corpus will be saved to the output directory specified in the script.
 
+#### Generate Corpus by Template
+
+This example shows how to use the Awesome-Text2GQL framework to generate a corpus based on predefined query templates. Before running it, ensure you have a running database instance and update the database connection and output configuration in examples/generate_corpus_by_template.py.
+
+The template-based generation process works as follows:
+1. Connects to the database to fetch real node/relationship data through exploration queries
+2. Fills the predefined query templates (from examples/corpus_templates/corpus_templates.json) with real data
+3. Uses LLM to translate the filled queries into natural language questions
+4. Validates the generated pairs and saves them to the output directory
+
+After all, run:
+
+`python ./examples/generate_corpus_by_template.py`
+
+When the script finishes, the generated corpus will be saved to examples/generated_corpus/{graph_name}_template_corpus.json.
+
 #### Cypher2GQL
 
 `python ./examples/cypher2gql.py`
