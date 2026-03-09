@@ -1,4 +1,5 @@
 from typing import List
+
 from app.core.clauses.clause import Clause
 from app.core.clauses.return_clause import ReturnBody
 from app.core.clauses.where_clause import CompareExpression
@@ -6,7 +7,10 @@ from app.core.clauses.where_clause import CompareExpression
 
 class WithClause(Clause):
     def __init__(
-        self, return_body: ReturnBody, compare_expression_list: List[CompareExpression], distinct: bool
+        self,
+        return_body: ReturnBody,
+        compare_expression_list: List[CompareExpression],
+        distinct: bool,
     ):
         self.return_body: ReturnBody = return_body
         self.compare_expression_list = compare_expression_list

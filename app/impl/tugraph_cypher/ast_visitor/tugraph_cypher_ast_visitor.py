@@ -1,3 +1,4 @@
+import traceback
 from typing import List, Tuple
 
 from antlr4 import CommonTokenStream, InputStream
@@ -12,7 +13,6 @@ from app.impl.tugraph_cypher.grammar.LcypherLexer import LcypherLexer
 from app.impl.tugraph_cypher.grammar.LcypherParser import LcypherParser
 from app.impl.tugraph_cypher.grammar.LcypherVisitor import LcypherVisitor
 
-import traceback
 
 class TugraphCypherAstVisitor(LcypherVisitor, AstVisitor):
     def get_query_pattern(self, query: str) -> Tuple[bool, List[Clause]]:
