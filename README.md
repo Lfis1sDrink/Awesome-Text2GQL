@@ -235,6 +235,33 @@ question_list = question_translator.translate(
 
 Query translator has the ability to translate queries in one query language into another, like cypher to gql. To achieve this, Awesome-Text2GQL designed and implemented a set of intermediate representation for commonly used graph query languages(ISO-GQL, Cypher, Gremlin, SQL/PGQ, etc.) and their dialects. With ast vistitor's implementations, different graph query language can be translated into the intermediate representation. With the query translator's implementations, intermediate representation can be translated into different graph query language.
 
+#### Query Grader
+
+Query grader uses LLM to analyze and grade the difficulty level of graph queries. It evaluates query complexity based on factors like path length, nesting depth, aggregation complexity, and condition complexity.
+
+**Grading Standards:**
+
++ **Easy**: Single node/edge matching, no aggregation/complex conditions (e.g., `MATCH (n) RETURN n`)
++ **Medium**: One-hop path, simple aggregation/filtering (e.g., `MATCH (a)-[]->(b) RETURN COUNT(b)`)
++ **Hard**: Multi-hop (≤2), multiple conditions, non-nested aggregation
++ **Extra Hard**: Complex path (≥3), multi-step MATCH, nested aggregation
+
+```python
+from app.core.llm.llm_client import LlmClient
+from app.core.translator.query_grader import QueryGrader
+
+llm_client = LlmClient(model="qwen-plus-0723")
+query_grader = QueryGrader(llm_client)
+
+# Grade a query
+query = [
+    {"question": "Find all actors", "query": "MATCH (n:Person) RETURN n"},
+    {"question": "Find movies by actor", "query": "MATCH (a:Person)-[:ACTED_IN]->(m:Movie) RETURN m"}
+]
+graded_query = query_grader.grade_query_sync(query)
+# Each item will have a 'difficulty' field added
+```
+
 ``` python
 from app.impl.iso_gql.translator.iso_gql_query_translator import IsoGqlQueryTranslator as GQLTranslator
 from app.impl.tugraph_cypher.ast_visitor.tugraph_cypher_query_visitor import TugraphCypherAstVisitor
@@ -377,6 +404,7 @@ The Corpus Generator produces high-quality Question-Query pairs through a hierar
 + Real validation: all queries are executed and verified on actual graph databases
 + Context-aware generation: uses query execution results as context for LLM enhancement
 + Iterative enhancement: controllable iteration rounds for gradually increasing complexity
++ Query grading: automatically grades query difficulty (easy, medium, hard, extra hard) using LLM-based analysis
 + Generated 800+ high-quality corpus pairs across multiple domains
 
 ![Corpus Generator Architecture](./images/Corpus.drawio.svg)

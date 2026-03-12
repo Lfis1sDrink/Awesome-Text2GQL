@@ -1,0 +1,18 @@
+[
+  {
+    "question": "Find all pairs of Locations that are both located within the same Administrative Area.",
+    "query": "MATCH (l1:Location)-[:LocatedIn]->(a:AdministrativeArea)<-[:LocatedIn]-(l2:Location) WHERE l1.Location_id < l2.Location_id RETURN l1, l2"
+  },
+  {
+    "question": "List all Administrative Areas where the area_km2 is greater than the area_km2 of the Administrative Area with code 'TW070'.",
+    "query": "MATCH (a:AdministrativeArea {code: 'TW070'}) WITH a.area_km2 AS target_area MATCH (b:AdministrativeArea) WHERE b.area_km2 > target_area RETURN b"
+  },
+  {
+    "question": "How many Infrastructure Networks span across multiple Administrative Areas, and what is the distribution of network types among them?",
+    "query": "MATCH (n:InfrastructureNetwork)-[:Spans]->(a:AdministrativeArea) WITH n, count(a) AS areaCount WHERE areaCount > 1 RETURN count(n) AS networkCount, n.network_type AS networkType"
+  },
+  {
+    "question": "How many PointOfInterest nodes exist in each Administrative Area, and what is the average capacity of these points of interest per area?",
+    "query": "MATCH (aa:AdministrativeArea)-[:ContainsPoi]->(poi:PointOfInterest) RETURN aa.name AS administrative_area, count(poi) AS poi_count, avg(poi.capacity) AS average_capacity ORDER BY administrative_area"
+  }
+]
