@@ -282,21 +282,20 @@ class IsoGqlQueryTranslator(QueryTranslator):
             "UNIT",
             "VALUES",
         ]
-        self.mapping = {
-        }
+        self.mapping = {}
 
     def is_reserved(self, word: str) -> bool:
         if word.upper() in self.reserved_words:
             return True
         else:
             return False
-    
+
     def map_label_and_property(self, word: str) -> bool:
         if word.lower() in self.mapping:
             return self.mapping[word.lower()]
         else:
             return word
-    
+
     def get_reserved_worlds(self) -> list:
         return self.reserved_words
 
@@ -328,9 +327,9 @@ class IsoGqlQueryTranslator(QueryTranslator):
     def _(self, match_clause: MatchClause) -> str:
         match_str = "MATCH "
         if isinstance(match_clause.path_pattern, list):
-                for path_pattern in match_clause.path_pattern:
-                    match_str += f"{self.translate(path_pattern)}, "
-                match_str = match_str.rstrip(", ")
+            for path_pattern in match_clause.path_pattern:
+                match_str += f"{self.translate(path_pattern)}, "
+            match_str = match_str.rstrip(", ")
         else:
             match_str += self.translate(match_clause.path_pattern)
 
@@ -427,7 +426,7 @@ class IsoGqlQueryTranslator(QueryTranslator):
         with_str += f"{self.translate(with_clause.return_body)}"
         with_str += " NEXT"
         if with_clause.compare_expression_list:
-            with_str += f" FILTER "
+            with_str += " FILTER "
             if isinstance(with_clause.compare_expression_list, list):
                 for compare_expression in with_clause.compare_expression_list:
                     with_str += f"{self.translate(compare_expression)} AND "
@@ -515,9 +514,9 @@ class IsoGqlQueryTranslator(QueryTranslator):
     def _(self, where_clause: WhereClause) -> str:
         where_str = "WHERE "
         if isinstance(where_clause.compare_expression_list, list):
-                for compare_expression in where_clause.compare_expression_list:
-                    where_str += f"{self.translate(compare_expression)} AND "
-                where_str = where_str.rstrip("AND ")
+            for compare_expression in where_clause.compare_expression_list:
+                where_str += f"{self.translate(compare_expression)} AND "
+            where_str = where_str.rstrip("AND ")
         else:
             where_str += f"{self.translate(where_clause.compare_expression_list)}"
 

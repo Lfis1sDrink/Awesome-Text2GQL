@@ -103,6 +103,38 @@ QUERY_ARCHETYPES = [
 ]
 
 
+
+QUERY_TEMPLATE_INSTRUCTION = """
+    You are a Cypher query generator expert for TuGraph.
+
+    I have run some exploration queries on a Graph Database and got the following RAW RESULT DATA. 
+    
+    --- RAW DATA START ---
+    {raw_data_str}
+    --- RAW DATA END ---
+
+    I also have a list of CYPHER TEMPLATES. 
+    Your task is to generate {current_batch_size} new (Question, Query) pairs by filling these templates using the REAL DATA extracted from the RAW DATA above.
+
+    --- TEMPLATES ---
+    {selected_templates}
+
+    --- CRITICAL RULES (Follow these or query will fail) ---
+    1. **Correct Syntax**: NEVER put a `WHERE` clause inside the node parentheses. 
+    - WRONG: `MATCH (n:Person WHERE n.age > 10)`
+    - RIGHT: `MATCH (n:Person) WHERE n.age > 10`
+    2. **Distinguish Node vs Edge**: 
+    - Look closely at the RAW DATA. 
+    - 'src' and 'dst' fields indicate an EDGE. 
+    - 'identity' without 'src/dst' indicates a NODE.
+    - Do NOT use a Node label as an Edge type (e.g. if 'GENRE' is a node, do not write `-[r:GENRE]-`).
+    3. **Data Types**:
+    - If a value is a string in RAW DATA, put quotes around it in Cypher (e.g. `name = "John"`).
+    - If a value is a number, do not use quotes (e.g. `age = 40`).
+    4. **JSON Output**: Output MUST be a strict JSON list of objects: [{{"question": "...", "query": "..."}}]
+    """  # noqa: E501
+
+
 EXPLORATION_PROMPT_TEMPLATE = """
 # Command
 Your task is to brainstorm and generate diverse natural language questions. Focus on the breadth and depth of questions, without considering how to write Cypher queries for now.

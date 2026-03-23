@@ -1,4 +1,3 @@
-import pandas as pd
 import json
 import re
 
@@ -9,6 +8,7 @@ from app.impl.tugraph_cypher.ast_visitor.tugraph_cypher_ast_visitor import Tugra
 from app.impl.tugraph_cypher.translator.tugraph_cypher_query_translator import (
     TugraphCypherQueryTranslator as CypherTranslator,
 )
+
 
 def cypher2gql(query):
     query_visitor = TugraphCypherAstVisitor()
@@ -21,7 +21,9 @@ def cypher2gql(query):
             # test if musk reserved world can solve the grammar problem:
             musk_query = query
             for word in gql_translator.get_reserved_worlds():
-                musk_query = re.sub(r'\[:{}\]'.format(word), f'[:`{word}`]', musk_query, flags=re.IGNORECASE)
+                musk_query = re.sub(
+                    rf"\[:{word}\]", f"[:`{word}`]", musk_query, flags=re.IGNORECASE
+                )
             if gql_translator.grammar_check(musk_query):
                 translated_query = musk_query
                 category = "Comply with ISO-GQL by Musking Reserved Words"
@@ -45,8 +47,9 @@ def cypher2gql(query):
 
     return translated_query, category
 
+
 # get test query list
-with open('./test_cypher_queries.json', 'r', encoding='utf-8') as f:
+with open("./test_cypher_queries.json", encoding="utf-8") as f:
     query_list = json.load(f)
 
 output_query_list = []
@@ -57,6 +60,6 @@ for query in query_list:
     new_row["gql"], new_row["category"] = cypher2gql(query)
     output_query_list.append(new_row)
 
-output_path = 'test_gql_query.json'
-with open(output_path, 'w', encoding='utf-8') as file:
+output_path = "test_gql_query.json"
+with open(output_path, "w", encoding="utf-8") as file:
     json.dump(output_query_list, file, ensure_ascii=False, indent=4)
