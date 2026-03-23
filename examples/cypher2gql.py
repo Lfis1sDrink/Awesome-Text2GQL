@@ -24,7 +24,11 @@ for _, row in df.iterrows():
         if not gql_translator.grammar_check(query):
             success, query_pattern = query_visitor.get_query_pattern(query)
             if success:
-                query = gql_translator.translate(query_pattern)
+                query_gql = gql_translator.translate(query_pattern)
+                if gql_translator.grammar_check(query_gql):
+                    query = query_gql
+                else:
+                    continue
             else:
                 continue
         new_row = row.copy()

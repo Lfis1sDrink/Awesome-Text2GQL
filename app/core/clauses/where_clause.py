@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, List
 
 from app.core.clauses.clause import Clause
 
@@ -13,47 +13,47 @@ class CompareExpression:
 
 
 class WhereClause(Clause):
-    def __init__(self, compare_expression: CompareExpression):
-        self.compare_expression = compare_expression
+    def __init__(self, compare_expression_list: List[CompareExpression]):
+        self.compare_expression_list = compare_expression_list
 
     def to_string(self) -> str:
         where_string = (
-            f"WHERE {self.compare_expression.symbolic_name}"
-            + f".{self.compare_expression.property['name']}"
+            f"WHERE {self.compare_expression_list.symbolic_name}"
+            + f".{self.compare_expression_list.property['name']}"
         )
-        if self.compare_expression.comparison_type == "equal":
+        if self.compare_expression_list.comparison_type == "equal":
             where_string += " = "
-        elif self.compare_expression.comparison_type == "neq":
+        elif self.compare_expression_list.comparison_type == "neq":
             where_string += " <> "
-        elif self.compare_expression.comparison_type == "less":
+        elif self.compare_expression_list.comparison_type == "less":
             where_string += " < "
-        elif self.compare_expression.comparison_type == "greater":
+        elif self.compare_expression_list.comparison_type == "greater":
             where_string += " > "
-        elif self.compare_expression.comparison_type == "leq":
+        elif self.compare_expression_list.comparison_type == "leq":
             where_string += " <= "
-        elif self.compare_expression.comparison_type == "geq":
+        elif self.compare_expression_list.comparison_type == "geq":
             where_string += " >= "
 
-        where_string += f"{self.compare_expression.comparison_value}"
+        where_string += f"{self.compare_expression_list.comparison_value}"
         return where_string
 
     def to_string_gql(self) -> str:
         where_string = "WHERE"
-        where_string += f" {self.compare_expression.symbolic_name}"
-        if self.compare_expression.property != "":
-            where_string += f".{self.compare_expression.property}"
-        if self.compare_expression.comparison_type == "equal":
+        where_string += f" {self.compare_expression_list.symbolic_name}"
+        if self.compare_expression_list.property != "":
+            where_string += f".{self.compare_expression_list.property}"
+        if self.compare_expression_list.comparison_type == "equal":
             where_string += " = "
-        elif self.compare_expression.comparison_type == "neq":
+        elif self.compare_expression_list.comparison_type == "neq":
             where_string += " <> "
-        elif self.compare_expression.comparison_type == "less":
+        elif self.compare_expression_list.comparison_type == "less":
             where_string += " < "
-        elif self.compare_expression.comparison_type == "greater":
+        elif self.compare_expression_list.comparison_type == "greater":
             where_string += " > "
-        elif self.compare_expression.comparison_type == "leq":
+        elif self.compare_expression_list.comparison_type == "leq":
             where_string += " <= "
-        elif self.compare_expression.comparison_type == "geq":
+        elif self.compare_expression_list.comparison_type == "geq":
             where_string += " >= "
 
-        where_string += f"{self.compare_expression.comparison_value}"
+        where_string += f"{self.compare_expression_list.comparison_value}"
         return where_string
