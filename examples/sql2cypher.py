@@ -1,56 +1,46 @@
-import csv
 import json
-import subprocess
+from pathlib import Path
 
-from neo4j import GraphDatabase
+from app.core.validator.db_client import QueryStatus
+from app.impl.neo4j_cypher.db_client.neo4j_db_client import Neo4jDBClient
+from app.impl.neo4j_cypher.translator.neo4j_cypher_query_translator import (
+    Neo4jCypherQueryTranslator,
+)
 
 # Filter SQL queries with db_id = TARGET_DB from train.json, translate them to Cypher,
-# execute them, and finally write the results to a CSV file.
-JSON_FILE = "/Users/gedion/Code/sql2cypher-neo4j/train/train.json"
-TARGET_DB = "books"
-DBid_InBIRD = "books"
+# execute them, and finally write the results to a JSON file.
+JSON_FILE = "examples/sql2cypher_asset/sql2cypher_example.json"
 
-JAR_CLASSPATH = "neo4j-jdbc-full-bundle-6.9.1.jar:Sql2CypherCLI"
-JAVA_CMD = ["java", "-cp", JAR_CLASSPATH, "Sql2CypherCLI"]
+# The target Neo4j database (subdomain) must be created beforehand! 
+# Use:'CREATE DATABASE sql2cypherexample'
+TARGET_DB = "sql2cypherexample"
 
-OUTPUT_FILE = f"{TARGET_DB}_sql2cypher_results.csv"
+# The db_id value in the train.json that we want to filter for and process.
+DBid_InBIRD = "sql2cypherexample"
+
+OUTPUT_FILE = Path(f"examples/sql2cypher_asset/results/{TARGET_DB}_sql2cypher_results.json")
+OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 # Neo4j Connection Configuration
 NEO4J_URI = "neo4j://localhost:7687"
 NEO4J_USER = "neo4j"
 NEO4J_PWD = "password"
 
-driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PWD), database=TARGET_DB)
-
-
-# SQL -> Cypher Translation
-def translate_sql(sql: str):
-    try:
-        result = subprocess.run(JAVA_CMD + [sql], capture_output=True, text=True, timeout=10)
-        cypher = result.stdout.strip()
-        if not cypher or result.returncode != 0:
-            return None
-        if "Exception" in cypher:
-            return None
-        return cypher
-    except Exception:
-        return None
-
-
-# Execute Cypher
-def execute_cypher(cypher: str):
-    try:
-        with driver.session() as session:
-            result = session.run(cypher)
-            data = result.data()
-            return {"status": "OK", "result": data}
-    except Exception as e:
-        return {"status": "ERROR", "error": str(e)}
+# Create Neo4j DB Client
+db_client_params = {
+    "uri": NEO4J_URI,
+    "user": NEO4J_USER,
+    "password": NEO4J_PWD,
+    "database": TARGET_DB,
+}
+neo4j_client = Neo4jDBClient(db_client_params)
 
 
 # Main Logic
 def main():
     print(f"Reading train.json, filtering for db_id = '{DBid_InBIRD}' SQL queries")
+
+    sql2cypher_translator = Neo4jCypherQueryTranslator()
 
     with open(JSON_FILE, encoding="utf-8") as f:
         data = json.load(f)
@@ -71,32 +61,56 @@ def main():
         print("SQL:", sql)
 
         # ---- Translation ----
-        cypher = translate_sql(sql)
+        cypher = sql2cypher_translator.translate(sql)
         if not cypher:
             print("Translation Failed")
-            results.append([question, sql, "", "FAIL_TRANSLATE", ""])
+            results.append(
+                {
+                    "question": question,
+                    "sql": sql,
+                    "cypher": "",
+                    "status": "FAIL_TRANSLATE",
+                    "result": None,
+                }
+            )
             continue
 
         print("Cypher:", cypher)
 
         # ---- Execution ----
-        exec_result = execute_cypher(cypher)
+        exec_result = neo4j_client.execute_query(cypher)
 
-        if exec_result["status"] == "OK":
-            print("Execution Successful, records returned:", len(exec_result["result"]))
-            results.append([question, sql, cypher, "OK", exec_result["result"]])
+        if exec_result.status_code == QueryStatus.SUCCESS:
+            print("Execution Successful, records returned:", len(exec_result.data))
+            results.append(
+                {
+                    "question": question,
+                    "sql": sql,
+                    "cypher": cypher,
+                    "status": "OK",
+                    "result": exec_result.data,
+                }
+            )
         else:
-            print("Execution Failed:", exec_result["error"])
-            results.append([question, sql, cypher, "EXEC_ERROR", exec_result["error"]])
+            print("Execution Failed:", exec_result.error)
+            results.append(
+                {
+                    "question": question,
+                    "sql": sql,
+                    "cypher": cypher,
+                    "status": "EXEC_ERROR",
+                    "result": exec_result.error,
+                }
+            )
 
-    # Write to CSV (including question column)
-    with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["Question", "SQL", "Cypher", "Status", "Result/Error"])
-        for r in results:
-            writer.writerow(r)
+    # Write to JSON
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(results, f, ensure_ascii=False, indent=4)
 
     print(f"\nFinished! Results written to {OUTPUT_FILE}")
+
+    # Close Neo4j client connection
+    neo4j_client.close()
 
 
 if __name__ == "__main__":

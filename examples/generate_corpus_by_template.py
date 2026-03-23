@@ -46,7 +46,7 @@ def main():
 
         # Read templates
         template_file = Path("examples/corpus_templates/corpus_templates.json")
-        with open(template_file, "r", encoding="utf-8") as f:
+        with open(template_file, encoding="utf-8") as f:
             query_templates = json.load(f)
         
         logger.info(f"Loaded {len(query_templates)} templates from {template_file}")
