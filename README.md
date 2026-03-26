@@ -195,6 +195,120 @@ This example shows how to use AwesomeText2GQL Framework to translate English que
 
 This example shows how to use AwesomeText2GQL Framework to print the ast of a query. Visualizing the AST is helpful for IR and other AST related development.
 
+#### SQL to Cypher
+
+`python ./examples/sql2cypher.py`
+
+This example demonstrates how to translate SQL queries to Cypher queries and execute them on Neo4j using the SQL-to-Cypher pipeline.
+
+**Important Notes:**
+
+1. **Create Neo4j Database First**: Before running this script, you must create the target Neo4j database. The database name cannot contain special characters like underscores (`_`).
+
+   ```cypher
+   # Connect to Neo4j and create the database
+   CREATE DATABASE sql2cypherexample;
+   ```
+
+2. **Java Dependency**: This module uses Neo4j's JDBC driver for SQL-to-Cypher translation. The Java JAR file is included at:
+   - `app/impl/neo4j_cypher/neo4j-jdbc-full-bundle-6.9.1.jar`
+
+3. **Java CLI Tool**: The translation is performed by `Sql2CypherCLI.class` which wraps the Neo4j JDBC translator. The Python module calls this Java tool via subprocess.
+
+**Usage Example:**
+
+```python
+from app.impl.neo4j_cypher.db_client.neo4j_db_client import Neo4jDBClient
+from app.impl.neo4j_cypher.translator.neo4j_cypher_query_translator import Neo4jCypherQueryTranslator
+
+# Create Neo4j DB client
+db_client_params = {
+    "uri": "neo4j://localhost:7687",
+    "user": "neo4j",
+    "password": "password",
+    "database": "sql2cypherexample",
+}
+neo4j_client = Neo4jDBClient(db_client_params)
+
+# Create SQL to Cypher translator
+translator = Neo4jCypherQueryTranslator()
+
+# Translate SQL to Cypher
+sql = "SELECT name, age FROM users WHERE id > 5"
+cypher = translator.translate(sql)
+# Output: MATCH (users:users) WHERE users.id > 5 RETURN users.name AS name, users.age AS age
+
+# Execute Cypher query
+result = neo4j_client.execute_query(cypher)
+if result.is_success():
+    print(result.data)
+```
+
+#### SQLite to Neo4j Migration
+
+`python ./examples/sqlite2neo4j.py`
+
+This example demonstrates how to migrate SQLite database data and schema to Neo4j graph database.
+
+**Important Notes:**
+
+1. **Create Neo4j Database First**: Before running this script, create the target Neo4j database.
+
+   ```cypher
+   CREATE DATABASE sql2cypherexample;
+   ```
+
+2. **Migration Strategy**:
+   - **Nodes**: Each SQLite table becomes a node label in Neo4j
+   - **Relationships**: Foreign keys become relationships
+   - **Join Tables**: Tables with 2+ foreign keys are "flattened" into direct relationships (M:N)
+
+3. **Batch Processing**: Large datasets are processed in batches (default: 5000 records per batch)
+
+**Usage Example:**
+
+```python
+from app.impl.sqlite_sql.db_client.sqlite_db_client import SQLiteDBClient
+from app.impl.neo4j_cypher.db_client.neo4j_db_client import Neo4jDBClient
+from app.impl.sqlite_sql.migrator.sqlite_to_neo4j_migrator import SQLiteToNeo4jMigrator
+
+# Create SQLite client
+sqlite_client = SQLiteDBClient("path/to/database.sqlite")
+sqlite_client.connect()
+
+# Create Neo4j client
+neo4j_client = Neo4jDBClient({
+    "uri": "neo4j://localhost:7687",
+    "user": "neo4j",
+    "password": "password",
+    "database": "mydb"
+})
+
+# Create migrator and execute migration
+migrator = SQLiteToNeo4jMigrator(
+    sqlite_db_client=sqlite_client,
+    neo4j_db_client=neo4j_client,
+    batch_size=5000
+)
+migrator.migrate(clear_before=True)
+
+# Cleanup
+neo4j_client.close()
+sqlite_client.disconnect()
+```
+
+**Module Architecture:**
+
+```
+app/impl/
+├── neo4j_cypher/          # Neo4j Cypher support
+│   ├── db_client/         # Neo4jDBClient - Neo4j database client
+│   └── translator/        # Neo4jCypherQueryTranslator - SQL to Cypher translator
+└── sqlite_sql/            # SQLite support
+    ├── db_client/         # SQLiteDBClient - SQLite database client
+    └── migrator/          # SQLiteToNeo4jMigrator - SQLite to Neo4j migrator
+```
+
 ## Modules
 
 Awesome-Text2GQL use Translator, Generalizer and Generator to assit the entire process of Text2GQL dataset construction.
