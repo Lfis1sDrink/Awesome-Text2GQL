@@ -219,6 +219,12 @@ This example shows how to use AwesomeText2GQL Framework to generalize from one I
 
 This example shows how to use AwesomeText2GQL Framework to translate English question into Chinese question with the same semantic meaning.
 
+#### Hierarchical Question Translation
+
+`python ./examples/hierarchical_question_translation.py`
+
+This example shows how to use `HierarchicalQuestionTranslator` to translate GQL queries into hierarchical natural language questions (`level_1`, `level_2`, `level_3`) and optionally enrich them with `external_knowledge`.
+
 #### AST Printing
 
 `python ./examples/print_ast.py`
@@ -373,6 +379,34 @@ question_list = question_translator.translate(
 )
 ```
 
+### Hierachical Question Translator
+
+Hierarchical question translator can generate `level_1`, `level_2`, and `level_3` questions for each GQL query, and optionally append `external_knowledge`.
+
+``` python
+from app.core.llm.llm_client import LlmClient
+from app.core.translator.question_translator import HierarchicalQuestionTranslator
+
+llm_client = LlmClient(model="qwen-plus")
+question_translator = HierarchicalQuestionTranslator(
+    llm_client=llm_client,
+    need_external_knowledge=True
+)
+
+query_list = [
+    "MATCH (n:Person)-[:ACTED_IN]->(m:Movie) WHERE n.name = 'Tom Hanks' RETURN m.title",
+    "MATCH (m:Movie)<-[:DIRECTED]-(d:Person) WHERE m.title = 'The Matrix' RETURN d.name"
+]
+data_schema_list = [
+    "Node labels: Person(name), Movie(title); Relationship: (:Person)-[:ACTED_IN|DIRECTED]->(:Movie)",
+    "Node labels: Person(name), Movie(title); Relationship: (:Person)-[:ACTED_IN|DIRECTED]->(:Movie)"
+]
+
+sample_list = question_translator.translate_hierachical_questions(
+    query_list=query_list,
+    data_schema_list=data_schema_list
+)
+```
 #### Query Translator
 
 ![query_translator](./images/query_translator.png)

@@ -1,8 +1,11 @@
-from typing import List, Tuple
+import json
+from typing import List, Optional, Tuple
 
 from tqdm import tqdm
 
 from app.core.llm.llm_client import LlmClient
+
+from app.core.translator.prompts import HIERARCHICAL_PROMPT_TEMPLATE, EXTERNAL_KNOWLEDGE_PROMPT_TEMPLATE
 
 CONTENT_TEMPLATE = """
 Original Query: {query_template}
@@ -224,3 +227,190 @@ class QuestionTranslator:
             if line:
                 translated_question_list.append(line)
         return translated_question_list
+
+
+class HierarchicalQuestionTranslator:
+    '''
+    This class can translate GQL into hierarchical natural language questions and add external knowledge to the questions if needed.
+
+    usage:
+    ```python
+    question_translator = HierarchicalQuestionTranslator(llm_client, need_external_knowledge=True)
+    sample_list = question_translator.translate_hierachical_questions(query_list)
+    '''
+
+    def __init__(self, llm_client: LlmClient, need_external_knowledge: bool = True):
+        '''
+        Initialize the HierarchicalQuestionTranslator.
+        Args:
+            llm_client: LlmClient
+            need_external_knowledge: bool = True
+        '''
+        self.llm_client = llm_client
+        self.hierarchical_prompt_template = HIERARCHICAL_PROMPT_TEMPLATE
+        if need_external_knowledge:
+            self.need_external_knowledge = True
+            self.external_knowledge_prompt_template = EXTERNAL_KNOWLEDGE_PROMPT_TEMPLATE
+        else:
+            self.need_external_knowledge = False
+            self.external_knowledge_prompt_template = None
+
+    def translate_hierachical_questions(
+        self, query_list: List[str], data_schema_list: Optional[List[str]] = None
+    ) -> List[dict]:
+        '''
+        Translate GQL into hierarchical natural language questions, and add external knowledge to the questions if needed.
+        
+        Args:
+            query_list: List[str]
+            data_schema_list: Optional[List[str]] = None
+        Returns:
+            List[dict]
+        Return example when need_external_knowledge=False:
+            {
+                "gql_query": "MATCH (n:Node) RETURN n",
+                "level_1": "List all nodes in the graph.",
+                "level_2": "List all nodes in the graph.",
+                "level_3": "List all nodes in the graph.",
+            }
+        Return example when need_external_knowledge=True:
+            {
+                "gql_query": "MATCH (n:Node) RETURN n",
+                "level_1": "List all nodes in the graph.",
+                "level_2": "List all nodes in the graph.",
+                "level_3": "List all nodes in the graph.",
+                "external_knowledge": "The graph has 100 nodes."
+            }
+        '''
+
+        if data_schema_list is None:
+            data_schema_list = [""] * len(query_list)
+        elif len(data_schema_list) != len(query_list):
+            raise ValueError("data_schema_list length must match query_list length")
+
+        # 1. generate prompt list
+        prompt_list = [
+            self.hierarchical_prompt_template.format(
+                gql_query=query, data_schema=data_schema
+            )
+            for query, data_schema in zip(query_list, data_schema_list)
+        ]
+        # 2. call LLM with prompt list
+        response_list = [
+            self.llm_client.call_with_messages([{"role": "user", "content": prompt}])
+            for prompt in prompt_list
+        ]
+        # 3. postprocess
+        hierarchical_question_list = [
+            self.post_process_hierarchical_questions_response(response, query)
+            for response, query in zip(response_list, query_list)
+        ]
+
+        # 4. translate external knowledge
+        if not self.need_external_knowledge:
+            return hierarchical_question_list
+        else:
+            hierarchical_question_list_with_external_knowledge = self.add_external_knowledge(hierarchical_question_list)
+            return hierarchical_question_list_with_external_knowledge
+
+    def add_external_knowledge(self, hierarchical_question_list: List[dict]) -> List[dict]:
+        '''
+        Add external knowledge to the hierarchical natural language questions.
+        Args:
+            hierarchical_question_list: List[dict]
+        Returns:
+            List[dict]
+        Return example:
+            {
+                "gql_query": "MATCH (n:Node) RETURN n",
+                "level_1": "List all nodes in the graph.",
+                "level_2": "List all nodes in the graph.",
+                "level_3": "List all nodes in the graph.",
+                "external_knowledge": "The graph has 100 nodes."
+            }
+        '''
+        query_list = [item["gql_query"] for item in hierarchical_question_list]
+
+        # 1. generate prompt list
+        prompt_list = [
+            self.external_knowledge_prompt_template.format(
+                gql_query=query,
+                level_2=hierarchical_question["level_2"],
+                level_3=hierarchical_question["level_3"],
+            )
+            for query, hierarchical_question in zip(query_list, hierarchical_question_list)
+        ]
+
+        # 2. call LLM with prompt list
+        response_list = [
+            self.llm_client.call_with_messages([{"role": "user", "content": prompt}])
+            for prompt in prompt_list
+        ]
+
+        # 3. postprocess
+        postprocessed_list = [
+            self.post_process_external_knowledge_response(
+                response, query, hierarchical_question
+            )
+            for response, query, hierarchical_question in zip(
+                response_list, query_list, hierarchical_question_list
+            )
+        ]
+
+        return postprocessed_list
+
+    def post_process_hierarchical_questions_response(self, response: str, query: str) -> dict:
+        '''
+        Postprocess the response of hierarchical natural language questions.
+        Args:
+            response: str
+            query: str
+        Returns:
+            dict
+        '''
+        # Try to extract JSON from the response
+        if "```json" in response:
+            json_str = response.split("```json")[1].split("```")[0].strip()
+        elif "```" in response:
+            json_str = response.split("```")[1].split("```")[0].strip()
+        else:
+            json_str = response.strip()
+        
+        # Parse JSON
+        result = json.loads(json_str)
+
+        return {
+            "gql_query": query,
+            "level_1": result.get("level_1", ""),
+            "level_2": result.get("level_2", ""),
+            "level_3": result.get("level_3", ""),
+        }
+    
+    def post_process_external_knowledge_response(self, response: str, query: str, hierarchical_question: dict) -> dict:
+        '''
+        Postprocess the response of external knowledge and add to question samples
+        Args:
+            response: str
+            query: str
+            hierarchical_question: dict
+        Returns:
+            dict
+        '''
+        # Try to extract JSON from the response
+        if "```json" in response:
+            json_str = response.split("```json")[1].split("```")[0].strip()
+        elif "```" in response:
+            json_str = response.split("```")[1].split("```")[0].strip()
+        else:
+            json_str = response.strip()
+        
+        # Parse JSON
+        result = json.loads(json_str)
+
+        return {
+            "gql_query": query,
+            "level_1": hierarchical_question["level_1"],
+            "level_2": hierarchical_question["level_2"],
+            "level_3": hierarchical_question["level_3"],
+            "external_knowledge": result.get("external_knowledge", ""),
+        }
